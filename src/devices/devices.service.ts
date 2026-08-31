@@ -6,10 +6,14 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { CreateDeviceDto, UpdateDeviceDto } from './dto/devices.dto';
+import { MqttService } from '@/mqtt/mqtt.service';
 
 @Injectable()
 export class DevicesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private mqttService: MqttService,
+  ) {}
 
   async createDevice(dto: CreateDeviceDto, userId: string) {
     try {
@@ -33,6 +37,9 @@ export class DevicesService {
           longitude: longitude,
         },
       });
+
+      // Broadcast MQTT event to worker for immediate stream configuration
+      await this.mqttService.publishUpsertCamera(device);
 
       return {
         message: 'Success created device',
@@ -153,6 +160,9 @@ export class DevicesService {
         },
       });
 
+      // Broadcast MQTT update to worker
+      await this.mqttService.publishUpsertCamera(update);
+
       return {
         message: 'Success update device',
         data: update,
@@ -183,6 +193,9 @@ export class DevicesService {
           id: deviceId,
         },
       });
+
+      // Broadcast MQTT removal to worker
+      await this.mqttService.publishRemoveCamera(deviceId);
 
       return {
         message: 'Success delete device',

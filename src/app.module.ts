@@ -7,6 +7,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { DevicesModule } from './devices/devices.module';
 import { ApiKeyGuard } from './guard/api-key.guard';
+import { MqttModule } from './mqtt/mqtt.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { ApiKeyGuard } from './guard/api-key.guard';
     PrismaModule,
     AuthModule,
     DevicesModule,
+    MqttModule,
   ],
   controllers: [AppController],
   providers: [

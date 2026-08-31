@@ -1,5 +1,7 @@
 import { PrismaService } from '@/prisma/prisma.service';
 import {
+  BadRequestException,
+  GatewayTimeoutException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -222,5 +224,76 @@ export class DevicesService {
         'Something went wrong on our server',
       );
     }
+  }
+
+  async captureDeviceSnapshot(deviceId: string): Promise<Buffer> {
+    const device = await this.prisma.device.findUnique({
+      where: { id: deviceId },
+    });
+
+    if (!device) {
+      throw new NotFoundException('Device not found');
+    }
+
+    const streamUrl = device.mediamtxEndpoint || device.rtspEndpoint;
+    if (!streamUrl) {
+      throw new BadRequestException('Device does not have a valid stream URL');
+    }
+
+    const { spawn } = await import('child_process');
+
+    return new Promise<Buffer>((resolve, reject) => {
+      const ffmpeg = spawn('ffmpeg', [
+        '-hide_banner',
+        '-loglevel',
+        'error',
+        '-rtsp_transport',
+        'tcp',
+        '-i',
+        streamUrl,
+        '-frames:v',
+        '1',
+        '-f',
+        'image2pipe',
+        '-vcodec',
+        'mjpeg',
+        'pipe:1',
+      ]);
+
+      const chunks: Buffer[] = [];
+      let errOutput = '';
+
+      ffmpeg.stdout.on('data', (chunk) => {
+        chunks.push(chunk);
+      });
+
+      ffmpeg.stderr.on('data', (data) => {
+        errOutput += data.toString();
+      });
+
+      ffmpeg.on('close', (code) => {
+        if (code === 0 && chunks.length > 0) {
+          resolve(Buffer.concat(chunks));
+        } else {
+          console.error(`FFmpeg snapshot failed with code ${code}: ${errOutput}`);
+          reject(new InternalServerErrorException('Failed to capture snapshot from camera stream'));
+        }
+      });
+
+      ffmpeg.on('error', (err) => {
+        console.error('FFmpeg process error:', err);
+        reject(new InternalServerErrorException('FFmpeg execution error'));
+      });
+
+      // 6 second safety timeout
+      setTimeout(() => {
+        try {
+          ffmpeg.kill();
+        } catch {
+          // ignore
+        }
+        reject(new GatewayTimeoutException('Snapshot capture timed out'));
+      }, 6000);
+    });
   }
 }

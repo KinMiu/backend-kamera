@@ -9,6 +9,7 @@ import {
   Patch,
   Post,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import { DevicesService } from './devices.service';
@@ -68,6 +69,15 @@ export class DevicesController {
   async getById(@Param('id') deviceId: string, @Req() req: any) {
     const userId = req.user.id;
     return this.devicesService.getDeviceById(userId, deviceId);
+  }
+
+  @Public()
+  @Get(':id/snapshot')
+  async getSnapshot(@Param('id') deviceId: string, @Res() res: any) {
+    const buffer = await this.devicesService.captureDeviceSnapshot(deviceId);
+    res.setHeader('Content-Type', 'image/jpeg');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.send(buffer);
   }
 
   @HttpCode(HttpStatus.OK)

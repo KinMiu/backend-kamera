@@ -64,6 +64,40 @@ export class DevicesService {
     }
   }
 
+  async getAllDevicesForWorker() {
+    try {
+      const devices = await this.prisma.device.findMany({
+        orderBy: { createdAt: 'desc' },
+      });
+
+      const formatted = devices.map((d) => ({
+        id: d.id,
+        name: d.name,
+        macAddress: d.macAddress,
+        rtspEndpoint: d.rtspEndpoint,
+        mediamtxEndpoint: d.mediamtxEndpoint,
+        source_url: d.rtspEndpoint,
+        target_url: d.mediamtxEndpoint || '',
+        is_active: true,
+        latitude: d.latitude,
+        longitude: d.longitude,
+        createdAt: d.createdAt,
+        updatedAt: d.updatedAt,
+      }));
+
+      return {
+        status: 'success',
+        message: 'Success get devices data for worker',
+        data: formatted,
+      };
+    } catch (error) {
+      console.error('Error getting devices for worker:', error);
+      throw new InternalServerErrorException(
+        'Something went wrong on our server',
+      );
+    }
+  }
+
   async getDeviceById(userId: string, deviceId: string) {
     const device = await this.prisma.device.findFirst({
       where: {

@@ -14,11 +14,26 @@ import {
 import { DevicesService } from './devices.service';
 import { CreateDeviceDto, UpdateDeviceDto } from './dto/devices.dto';
 import { JwtAuthGuard } from '@/guard/jwt-auth.guard';
+import { Public } from '@/guard/public.decorator';
 
 @UseGuards(JwtAuthGuard)
 @Controller('devices')
 export class DevicesController {
   constructor(private readonly devicesService: DevicesService) {}
+
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @Get('worker')
+  async getWorkerDevices() {
+    return this.devicesService.getAllDevicesForWorker();
+  }
+
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @Get('worker/cameras')
+  async getWorkerCamerasAlias() {
+    return this.devicesService.getAllDevicesForWorker();
+  }
 
   @HttpCode(HttpStatus.CREATED)
   @Post()

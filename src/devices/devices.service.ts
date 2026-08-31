@@ -53,10 +53,19 @@ export class DevicesService {
     }
   }
 
-  async getAllDevices(userId: string) {
+  async getAllDevices(userId?: string) {
     try {
       const data = await this.prisma.device.findMany({
-        where: { userId: userId },
+        orderBy: { createdAt: 'desc' },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
       });
 
       return {
@@ -109,12 +118,20 @@ export class DevicesService {
     const device = await this.prisma.device.findFirst({
       where: {
         id: deviceId,
-        userId: userId,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
       },
     });
 
     if (!device) {
-      throw new NotFoundException('Device not found or access denied');
+      throw new NotFoundException('Device not found');
     }
 
     return {
@@ -127,12 +144,11 @@ export class DevicesService {
     const isValid = await this.prisma.device.findFirst({
       where: {
         id: deviceId,
-        userId: userId,
       },
     });
 
     if (!isValid) {
-      throw new UnauthorizedException('Device not found or access denied');
+      throw new NotFoundException('Device not found');
     }
 
     try {
@@ -179,12 +195,11 @@ export class DevicesService {
     const isValid = await this.prisma.device.findFirst({
       where: {
         id: deviceId,
-        userId: userId,
       },
     });
 
     if (!isValid) {
-      throw new UnauthorizedException('Device not found or access denied');
+      throw new NotFoundException('Device not found');
     }
 
     try {

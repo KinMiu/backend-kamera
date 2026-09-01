@@ -32,7 +32,22 @@ model Device {
   userId           String
   user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  recordings       Recording[]
+
   @@map("devices")
 }
 
+model Recording {
+  id        String   @id @default(uuid())
+  deviceId  String
+  device    Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  path      String
+  url       String
+  size      BigInt?
+  duration  Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
+  @@index([deviceId, createdAt])
+  @@map("recordings")
+}

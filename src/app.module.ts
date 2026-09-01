@@ -6,6 +6,7 @@ import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { DevicesModule } from './devices/devices.module';
+import { RecordingsModule } from './recordings/recordings.module';
 import { ApiKeyGuard } from './guard/api-key.guard';
 import { MqttModule } from './mqtt/mqtt.module';
 
@@ -17,6 +18,7 @@ import { MqttModule } from './mqtt/mqtt.module';
     PrismaModule,
     AuthModule,
     DevicesModule,
+    RecordingsModule,
     MqttModule,
   ],
   controllers: [AppController],

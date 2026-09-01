@@ -241,9 +241,10 @@ export class DevicesService {
     }
 
     const { spawn } = await import('child_process');
+    const ffmpegPath = process.env.FFMPEG_PATH || 'ffmpeg';
 
     return new Promise<Buffer>((resolve, reject) => {
-      const ffmpeg = spawn('ffmpeg', [
+      const ffmpeg = spawn(ffmpegPath, [
         '-hide_banner',
         '-loglevel',
         'error',
@@ -275,14 +276,28 @@ export class DevicesService {
         if (code === 0 && chunks.length > 0) {
           resolve(Buffer.concat(chunks));
         } else {
-          console.error(`FFmpeg snapshot failed with code ${code}: ${errOutput}`);
-          reject(new InternalServerErrorException('Failed to capture snapshot from camera stream'));
+          console.error(
+            `FFmpeg snapshot failed with code ${code}: ${errOutput}`,
+          );
+          reject(
+            new InternalServerErrorException(
+              'Failed to capture snapshot from camera stream',
+            ),
+          );
         }
       });
 
-      ffmpeg.on('error', (err) => {
+      ffmpeg.on('error', (err: any) => {
         console.error('FFmpeg process error:', err);
-        reject(new InternalServerErrorException('FFmpeg execution error'));
+        if (err?.code === 'ENOENT') {
+          reject(
+            new InternalServerErrorException(
+              `FFmpeg binary ('${ffmpegPath}') tidak ditemukan di server. Pastikan ffmpeg sudah terinstall (sudo apt install -y ffmpeg).`,
+            ),
+          );
+        } else {
+          reject(new InternalServerErrorException('FFmpeg execution error'));
+        }
       });
 
       // 6 second safety timeout

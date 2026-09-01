@@ -139,8 +139,7 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
   ): Promise<void> {
     const primaryTopic =
       process.env.MQTT_WORKER_TOPIC || 'workers/worker_cabang_01/events';
-    const broadcastTopic =
-      process.env.MQTT_BROADCAST_TOPIC || 'workers/events';
+    const broadcastTopic = process.env.MQTT_BROADCAST_TOPIC || 'workers/events';
 
     const message = JSON.stringify(payload);
 

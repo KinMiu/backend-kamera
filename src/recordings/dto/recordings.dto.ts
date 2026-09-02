@@ -32,10 +32,10 @@ export class GetRecordingsQueryDto {
 
   @IsOptional()
   @IsString()
-  @IsIn(['createdAt', 'duration', 'size'], {
-    message: 'sortBy must be one of: createdAt, duration, size',
+  @IsIn(['createdAt', 'duration', 'size', 'path'], {
+    message: 'sortBy must be one of: createdAt, duration, size, path',
   })
-  sortBy?: string = 'createdAt';
+  sortBy?: string = 'path';
 
   @IsOptional()
   @IsString()

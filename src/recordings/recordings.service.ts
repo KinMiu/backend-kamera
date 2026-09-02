@@ -15,7 +15,7 @@ export class RecordingsService {
       const page = Number(query.page) || 1;
       const limit = Number(query.limit) || 20;
       const skip = (page - 1) * limit;
-      const sortBy = query.sortBy || 'createdAt';
+      const sortBy = query.sortBy || 'path';
       const order = query.order || 'desc';
 
       const where: any = {};

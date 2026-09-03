@@ -34,14 +34,14 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
   }
 
   private connect() {
-    let brokerUrl = process.env.MQTT_BROKER || 'tcp://195.35.23.135:1883';
+    let brokerUrl = process.env.MQTT_BROKER || 'tcp://localhost:1883';
     // Convert tcp:// prefix to mqtt:// for MQTT.js if needed
     if (brokerUrl.startsWith('tcp://')) {
       brokerUrl = brokerUrl.replace(/^tcp:\/\//, 'mqtt://');
     }
 
-    const username = process.env.MQTT_USERNAME || '/smk2pkl:smk2iot';
-    const password = process.env.MQTT_PASSWORD || 'smk2iot';
+    const username = process.env.MQTT_USERNAME;
+    const password = process.env.MQTT_PASSWORD;
     const clientId =
       process.env.MQTT_CLIENT_ID ||
       `backend_server_${Math.random().toString(16).substring(2, 8)}`;
@@ -51,14 +51,21 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
     );
 
     try {
-      this.client = mqtt.connect(brokerUrl, {
+      const options: mqtt.IClientOptions = {
         clientId,
-        username,
-        password,
         reconnectPeriod: 5000,
         connectTimeout: 10000,
         clean: true,
-      });
+      };
+
+      if (username) {
+        options.username = username;
+      }
+      if (password) {
+        options.password = password;
+      }
+
+      this.client = mqtt.connect(brokerUrl, options);
 
       this.client.on('connect', () => {
         this.logger.log('Successfully connected to MQTT Broker');

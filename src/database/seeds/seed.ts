@@ -23,8 +23,8 @@ async function seed() {
 
   const userRepository = dataSource.getRepository(UserEntity);
 
-  const adminEmail = 'admin@destroyer.local';
-  const rawPassword = 'ThehighestAuthority123!';
+  const adminEmail = process.env.SEED_ADMIN_EMAIL || 'admin@example.com';
+  const rawPassword = process.env.SEED_ADMIN_PASSWORD || 'AdminPassword123!';
   const hashedPassword = await bcrypt.hash(rawPassword, 10);
 
   let admin = await userRepository.findOne({ where: { email: adminEmail } });

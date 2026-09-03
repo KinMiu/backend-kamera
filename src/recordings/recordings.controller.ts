@@ -11,6 +11,7 @@ import {
 import { RecordingsService } from './recordings.service';
 import { GetRecordingsQueryDto } from './dto/recordings.dto';
 import { JwtAuthGuard } from '@/guard/jwt-auth.guard';
+import type { AuthenticatedRequest } from '@/common/interfaces/request.interface';
 
 @UseGuards(JwtAuthGuard)
 @Controller('recordings')
@@ -19,14 +20,20 @@ export class RecordingsController {
 
   @HttpCode(HttpStatus.OK)
   @Get()
-  async getAll(@Query() query: GetRecordingsQueryDto, @Req() req: any) {
+  async getAll(
+    @Query() query: GetRecordingsQueryDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
     const userId = req.user?.id;
     return this.recordingsService.getAllRecordings(query, userId);
   }
 
   @HttpCode(HttpStatus.OK)
   @Get('get')
-  async getAllAlias(@Query() query: GetRecordingsQueryDto, @Req() req: any) {
+  async getAllAlias(
+    @Query() query: GetRecordingsQueryDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
     const userId = req.user?.id;
     return this.recordingsService.getAllRecordings(query, userId);
   }
@@ -36,7 +43,7 @@ export class RecordingsController {
   async getByDevice(
     @Param('deviceId') deviceId: string,
     @Query() query: GetRecordingsQueryDto,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ) {
     const userId = req.user?.id;
     return this.recordingsService.getAllRecordings(
@@ -47,7 +54,10 @@ export class RecordingsController {
 
   @HttpCode(HttpStatus.OK)
   @Get(':id')
-  async getById(@Param('id') id: string, @Req() req: any) {
+  async getById(
+    @Param('id') id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
     const userId = req.user?.id;
     return this.recordingsService.getRecordingById(id, userId);
   }

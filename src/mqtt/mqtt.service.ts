@@ -75,8 +75,9 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
       this.client.on('offline', () => {
         this.logger.warn('MQTT Client went offline');
       });
-    } catch (err: any) {
-      this.logger.error(`Failed to initialize MQTT client: ${err?.message}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.error(`Failed to initialize MQTT client: ${message}`);
     }
   }
 
@@ -134,9 +135,7 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
     await this.publishToWorkerTopics(payload);
   }
 
-  private async publishToWorkerTopics(
-    payload: MQTTEventPayload,
-  ): Promise<void> {
+  private publishToWorkerTopics(payload: MQTTEventPayload): void {
     const primaryTopic =
       process.env.MQTT_WORKER_TOPIC || 'workers/worker_cabang_01/events';
     const broadcastTopic = process.env.MQTT_BROADCAST_TOPIC || 'workers/events';

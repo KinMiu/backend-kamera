@@ -12,10 +12,12 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { DevicesService } from './devices.service';
 import { CreateDeviceDto, UpdateDeviceDto } from './dto/devices.dto';
 import { JwtAuthGuard } from '@/guard/jwt-auth.guard';
 import { Public } from '@/guard/public.decorator';
+import type { AuthenticatedRequest } from '@/common/interfaces/request.interface';
 
 @UseGuards(JwtAuthGuard)
 @Controller('devices')
@@ -38,42 +40,48 @@ export class DevicesController {
 
   @HttpCode(HttpStatus.CREATED)
   @Post()
-  async create(@Body() dto: CreateDeviceDto, @Req() req: any) {
+  async create(@Body() dto: CreateDeviceDto, @Req() req: AuthenticatedRequest) {
     const userId = req.user.id;
     return this.devicesService.createDevice(dto, userId);
   }
 
   @HttpCode(HttpStatus.CREATED)
   @Post('create')
-  async createAlias(@Body() dto: CreateDeviceDto, @Req() req: any) {
+  async createAlias(
+    @Body() dto: CreateDeviceDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
     const userId = req.user.id;
     return this.devicesService.createDevice(dto, userId);
   }
 
   @HttpCode(HttpStatus.OK)
   @Get()
-  async getAll(@Req() req: any) {
+  async getAll(@Req() req: AuthenticatedRequest) {
     const userId = req.user.id;
     return this.devicesService.getAllDevices(userId);
   }
 
   @HttpCode(HttpStatus.OK)
   @Get('get')
-  async getAllAlias(@Req() req: any) {
+  async getAllAlias(@Req() req: AuthenticatedRequest) {
     const userId = req.user.id;
     return this.devicesService.getAllDevices(userId);
   }
 
   @HttpCode(HttpStatus.OK)
   @Get(':id')
-  async getById(@Param('id') deviceId: string, @Req() req: any) {
+  async getById(
+    @Param('id') deviceId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
     const userId = req.user.id;
     return this.devicesService.getDeviceById(userId, deviceId);
   }
 
   @Public()
   @Get(':id/snapshot')
-  async getSnapshot(@Param('id') deviceId: string, @Res() res: any) {
+  async getSnapshot(@Param('id') deviceId: string, @Res() res: Response) {
     const buffer = await this.devicesService.captureDeviceSnapshot(deviceId);
     res.setHeader('Content-Type', 'image/jpeg');
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -85,7 +93,7 @@ export class DevicesController {
   async update(
     @Param('id') deviceId: string,
     @Body() dto: UpdateDeviceDto,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ) {
     const userId = req.user.id;
     return this.devicesService.updateDevice(dto, userId, deviceId);
@@ -96,7 +104,7 @@ export class DevicesController {
   async updateAlias(
     @Param('id') deviceId: string,
     @Body() dto: UpdateDeviceDto,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ) {
     const userId = req.user.id;
     return this.devicesService.updateDevice(dto, userId, deviceId);
@@ -104,14 +112,20 @@ export class DevicesController {
 
   @HttpCode(HttpStatus.OK)
   @Delete(':id')
-  async delete(@Param('id') deviceId: string, @Req() req: any) {
+  async delete(
+    @Param('id') deviceId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
     const userId = req.user.id;
     return this.devicesService.deleteDevice(userId, deviceId);
   }
 
   @HttpCode(HttpStatus.OK)
   @Delete('delete/:id')
-  async deleteAlias(@Param('id') deviceId: string, @Req() req: any) {
+  async deleteAlias(
+    @Param('id') deviceId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
     const userId = req.user.id;
     return this.devicesService.deleteDevice(userId, deviceId);
   }

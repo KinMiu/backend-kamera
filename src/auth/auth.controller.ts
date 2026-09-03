@@ -1,16 +1,17 @@
 import {
   Body,
   Controller,
-  ForbiddenException,
   HttpCode,
   HttpStatus,
   Post,
   Req,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from '../guard/jwt-auth.guard';
+import type { AuthenticatedRequest } from '../common/interfaces/request.interface';
 
 @Controller('auth')
 export class AuthController {
@@ -26,20 +27,15 @@ export class AuthController {
   @Post('refresh')
   async refresh(@Body('refreshToken') refreshToken: string) {
     if (!refreshToken) {
-      throw new ForbiddenException('Refresh token is missing');
+      throw new UnauthorizedException('Refresh token is required');
     }
-
-    try {
-      return this.authService.refreshTokens(refreshToken);
-    } catch (error) {
-      throw new ForbiddenException('Access denied');
-    }
+    return this.authService.refreshTokens(refreshToken);
   }
 
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   @Post('logout')
-  async logout(@Req() req: any) {
+  async logout(@Req() req: AuthenticatedRequest) {
     const userId = req.user.id;
     return this.authService.logout(userId);
   }

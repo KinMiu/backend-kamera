@@ -20,11 +20,8 @@
     "noImplicitAny": false,
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
-    
-    // TAMBAHKAN ATAU SESUAIKAN BAGIAN INI
     "paths": {
-      "@/*": ["./src/*"],
-      "@prisma/client": ["./node_modules/@prisma/client"]
+      "@/*": ["./src/*"]
     }
   }
 }

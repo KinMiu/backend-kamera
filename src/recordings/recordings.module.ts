@@ -1,10 +1,12 @@
 import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { RecordingsController } from './recordings.controller';
 import { RecordingsService } from './recordings.service';
-import { PrismaModule } from '@/prisma/prisma.module';
+import { RecordingEntity } from '../database/entities/recording.entity';
+import { DeviceEntity } from '../database/entities/device.entity';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [TypeOrmModule.forFeature([RecordingEntity, DeviceEntity])],
   controllers: [RecordingsController],
   providers: [RecordingsService],
   exports: [RecordingsService],

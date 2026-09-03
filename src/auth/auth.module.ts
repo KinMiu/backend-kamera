@@ -2,11 +2,12 @@ import { Module } from '@nestjs/common';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtModule } from '@nestjs/jwt';
-import { PrismaModule } from '@/prisma/prisma.module';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { UserEntity } from '../database/entities/user.entity';
 
 @Module({
   imports: [
-    PrismaModule,
+    TypeOrmModule.forFeature([UserEntity]),
     JwtModule.register({
       global: true,
       secret: process.env.JWT_SECRET || 'secret-destroyer-key-2026',
@@ -17,5 +18,6 @@ import { PrismaModule } from '@/prisma/prisma.module';
   ],
   controllers: [AuthController],
   providers: [AuthService],
+  exports: [AuthService],
 })
 export class AuthModule {}

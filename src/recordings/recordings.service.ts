@@ -1,69 +1,72 @@
-import { PrismaService } from '@/prisma/prisma.service';
 import {
+  HttpException,
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { GetRecordingsQueryDto } from './dto/recordings.dto';
+import { RecordingEntity } from '../database/entities/recording.entity';
 
 @Injectable()
 export class RecordingsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(RecordingsService.name);
+
+  constructor(
+    @InjectRepository(RecordingEntity)
+    private readonly recordingRepository: Repository<RecordingEntity>,
+  ) {}
 
   async getAllRecordings(query: GetRecordingsQueryDto, userId?: string) {
     try {
       const page = Number(query.page) || 1;
       const limit = Number(query.limit) || 20;
       const skip = (page - 1) * limit;
-      const sortBy = query.sortBy || 'path';
-      const order = query.order || 'desc';
+      const sortBy = query.sortBy || 'createdAt';
+      const order = query.order?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
-      const where: any = {};
+      const qb = this.recordingRepository
+        .createQueryBuilder('recording')
+        .leftJoinAndSelect('recording.device', 'device');
 
       if (query.deviceId) {
-        where.deviceId = query.deviceId;
+        qb.andWhere('recording.deviceId = :deviceId', { deviceId: query.deviceId });
       }
 
-      if (query.startDate || query.endDate) {
-        where.createdAt = {};
-        if (query.startDate) {
-          where.createdAt.gte = new Date(query.startDate);
-        }
-        if (query.endDate) {
-          where.createdAt.lte = new Date(query.endDate);
-        }
+      if (query.startDate) {
+        qb.andWhere('recording.createdAt >= :startDate', {
+          startDate: new Date(query.startDate),
+        });
+      }
+
+      if (query.endDate) {
+        qb.andWhere('recording.createdAt <= :endDate', {
+          endDate: new Date(query.endDate),
+        });
       }
 
       if (query.search && query.search.trim() !== '') {
-        const search = query.search.trim();
-        where.OR = [
-          { path: { contains: search, mode: 'insensitive' } },
-          { device: { name: { contains: search, mode: 'insensitive' } } },
-          { device: { macAddress: { contains: search, mode: 'insensitive' } } },
-        ];
+        const search = `%${query.search.trim()}%`;
+        qb.andWhere(
+          '(recording.path ILIKE :search OR device.name ILIKE :search OR device.macAddress ILIKE :search)',
+          { search },
+        );
       }
 
-      const [total, recordings] = await Promise.all([
-        this.prisma.recording.count({ where }),
-        this.prisma.recording.findMany({
-          where,
-          skip,
-          take: limit,
-          orderBy: { [sortBy]: order },
-          include: {
-            device: {
-              select: {
-                id: true,
-                name: true,
-                macAddress: true,
-                mediamtxEndpoint: true,
-                latitude: true,
-                longitude: true,
-              },
-            },
-          },
-        }),
-      ]);
+      // Safe sorting column mapping
+      const validSortColumns: Record<string, string> = {
+        createdAt: 'recording.createdAt',
+        path: 'recording.path',
+        duration: 'recording.duration',
+        size: 'recording.size',
+      };
+      const sortColumn = validSortColumns[sortBy] || 'recording.createdAt';
+
+      qb.orderBy(sortColumn, order).skip(skip).take(limit);
+
+      const [recordings, total] = await qb.getManyAndCount();
 
       const formatted = recordings.map((r) => ({
         id: r.id,
@@ -76,21 +79,34 @@ export class RecordingsService {
         duration: r.duration,
         createdAt: r.createdAt,
         updatedAt: r.updatedAt,
-        device: r.device,
+        device: r.device
+          ? {
+              id: r.device.id,
+              name: r.device.name,
+              macAddress: r.device.macAddress,
+              mediamtxEndpoint: r.device.mediamtxEndpoint,
+              latitude: r.device.latitude,
+              longitude: r.device.longitude,
+            }
+          : undefined,
       }));
 
       return {
         message: 'Success get recordings data',
         data: formatted,
-        pagination: {
+        meta: {
           page,
           limit,
-          total,
+          totalData: total,
+          totalDataPerPage: formatted.length,
           totalPages: Math.ceil(total / limit) || 1,
         },
       };
     } catch (error) {
-      console.error('Error getting recordings:', error);
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      this.logger.error('Error getting recordings:', error);
       throw new InternalServerErrorException(
         'Something went wrong on our server',
       );
@@ -99,20 +115,9 @@ export class RecordingsService {
 
   async getRecordingById(id: string, userId?: string) {
     try {
-      const recording = await this.prisma.recording.findUnique({
+      const recording = await this.recordingRepository.findOne({
         where: { id },
-        include: {
-          device: {
-            select: {
-              id: true,
-              name: true,
-              macAddress: true,
-              mediamtxEndpoint: true,
-              latitude: true,
-              longitude: true,
-            },
-          },
-        },
+        relations: { device: true },
       });
 
       if (!recording) {
@@ -133,7 +138,16 @@ export class RecordingsService {
         duration: recording.duration,
         createdAt: recording.createdAt,
         updatedAt: recording.updatedAt,
-        device: recording.device,
+        device: recording.device
+          ? {
+              id: recording.device.id,
+              name: recording.device.name,
+              macAddress: recording.device.macAddress,
+              mediamtxEndpoint: recording.device.mediamtxEndpoint,
+              latitude: recording.device.latitude,
+              longitude: recording.device.longitude,
+            }
+          : undefined,
       };
 
       return {
@@ -144,7 +158,7 @@ export class RecordingsService {
       if (error instanceof NotFoundException) {
         throw error;
       }
-      console.error('Error getting recording detail:', error);
+      this.logger.error('Error getting recording detail:', error);
       throw new InternalServerErrorException(
         'Something went wrong on our server',
       );

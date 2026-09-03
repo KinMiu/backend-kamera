@@ -1,24 +1,41 @@
-import { PrismaService } from '@/prisma/prisma.service';
 import {
   BadRequestException,
+  ConflictException,
   GatewayTimeoutException,
+  HttpException,
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
-  UnauthorizedException,
 } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { CreateDeviceDto, UpdateDeviceDto } from './dto/devices.dto';
 import { MqttService } from '@/mqtt/mqtt.service';
+import { DeviceEntity } from '../database/entities/device.entity';
 
 @Injectable()
 export class DevicesService {
+  private readonly logger = new Logger(DevicesService.name);
+
   constructor(
-    private prisma: PrismaService,
-    private mqttService: MqttService,
+    @InjectRepository(DeviceEntity)
+    private readonly deviceRepository: Repository<DeviceEntity>,
+    private readonly mqttService: MqttService,
   ) {}
 
   async createDevice(dto: CreateDeviceDto, userId: string) {
     try {
+      // 409 Conflict check for unique MAC address
+      const existing = await this.deviceRepository.findOne({
+        where: { macAddress: dto.macAddress },
+      });
+      if (existing) {
+        throw new ConflictException(
+          `Device with MAC address '${dto.macAddress}' already exists`,
+        );
+      }
+
       const latitude = dto.latitude ?? dto.lat ?? null;
       const longitude = dto.longitude ?? dto.long ?? null;
       const mediamtxEndpoint =
@@ -28,27 +45,30 @@ export class DevicesService {
         dto.mediamtxUrl ??
         null;
 
-      const device = await this.prisma.device.create({
-        data: {
-          userId: userId,
-          name: dto.name,
-          macAddress: dto.macAddress,
-          rtspEndpoint: dto.rtspEndpoint,
-          mediamtxEndpoint: mediamtxEndpoint,
-          latitude: latitude,
-          longitude: longitude,
-        },
+      const device = this.deviceRepository.create({
+        userId: userId,
+        name: dto.name,
+        macAddress: dto.macAddress,
+        rtspEndpoint: dto.rtspEndpoint,
+        mediamtxEndpoint: mediamtxEndpoint,
+        latitude: latitude,
+        longitude: longitude,
       });
 
+      const savedDevice = await this.deviceRepository.save(device);
+
       // Broadcast MQTT event to worker for immediate stream configuration
-      await this.mqttService.publishUpsertCamera(device);
+      await this.mqttService.publishUpsertCamera(savedDevice);
 
       return {
         message: 'Success created device',
-        data: device,
+        data: savedDevice,
       };
     } catch (error) {
-      console.error('Error creating device:', error);
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      this.logger.error('Error creating device:', error);
       throw new InternalServerErrorException(
         'Something went wrong on our server',
       );
@@ -57,15 +77,24 @@ export class DevicesService {
 
   async getAllDevices(userId?: string) {
     try {
-      const data = await this.prisma.device.findMany({
-        orderBy: { createdAt: 'desc' },
-        include: {
+      const data = await this.deviceRepository.find({
+        order: { createdAt: 'DESC' },
+        relations: { user: true },
+        select: {
+          id: true,
+          name: true,
+          macAddress: true,
+          rtspEndpoint: true,
+          mediamtxEndpoint: true,
+          latitude: true,
+          longitude: true,
+          createdAt: true,
+          updatedAt: true,
+          userId: true,
           user: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
+            id: true,
+            name: true,
+            email: true,
           },
         },
       });
@@ -75,7 +104,10 @@ export class DevicesService {
         data: data,
       };
     } catch (error) {
-      console.error('Error getting devices:', error);
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      this.logger.error('Error getting devices:', error);
       throw new InternalServerErrorException(
         'Something went wrong on our server',
       );
@@ -84,8 +116,8 @@ export class DevicesService {
 
   async getAllDevicesForWorker() {
     try {
-      const devices = await this.prisma.device.findMany({
-        orderBy: { createdAt: 'desc' },
+      const devices = await this.deviceRepository.find({
+        order: { createdAt: 'DESC' },
       });
 
       const formatted = devices.map((d) => ({
@@ -109,7 +141,10 @@ export class DevicesService {
         data: formatted,
       };
     } catch (error) {
-      console.error('Error getting devices for worker:', error);
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      this.logger.error('Error getting devices for worker:', error);
       throw new InternalServerErrorException(
         'Something went wrong on our server',
       );
@@ -117,17 +152,24 @@ export class DevicesService {
   }
 
   async getDeviceById(userId: string, deviceId: string) {
-    const device = await this.prisma.device.findFirst({
-      where: {
-        id: deviceId,
-      },
-      include: {
+    const device = await this.deviceRepository.findOne({
+      where: { id: deviceId },
+      relations: { user: true },
+      select: {
+        id: true,
+        name: true,
+        macAddress: true,
+        rtspEndpoint: true,
+        mediamtxEndpoint: true,
+        latitude: true,
+        longitude: true,
+        createdAt: true,
+        updatedAt: true,
+        userId: true,
         user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
+          id: true,
+          name: true,
+          email: true,
         },
       },
     });
@@ -143,17 +185,27 @@ export class DevicesService {
   }
 
   async updateDevice(dto: UpdateDeviceDto, userId: string, deviceId: string) {
-    const isValid = await this.prisma.device.findFirst({
-      where: {
-        id: deviceId,
-      },
+    const device = await this.deviceRepository.findOne({
+      where: { id: deviceId },
     });
 
-    if (!isValid) {
+    if (!device) {
       throw new NotFoundException('Device not found');
     }
 
     try {
+      // 409 Conflict check if changing to another existing MAC address
+      if (dto.macAddress && dto.macAddress !== device.macAddress) {
+        const existing = await this.deviceRepository.findOne({
+          where: { macAddress: dto.macAddress },
+        });
+        if (existing && existing.id !== deviceId) {
+          throw new ConflictException(
+            `Device with MAC address '${dto.macAddress}' already exists`,
+          );
+        }
+      }
+
       const latValue = dto.latitude !== undefined ? dto.latitude : dto.lat;
       const longValue = dto.longitude !== undefined ? dto.longitude : dto.long;
       const mediamtxValue =
@@ -162,31 +214,27 @@ export class DevicesService {
         dto.bypassRtspEndpoint ??
         dto.mediamtxUrl;
 
-      const update = await this.prisma.device.update({
-        where: {
-          id: deviceId,
-        },
-        data: {
-          ...(dto.name && { name: dto.name }),
-          ...(dto.macAddress && { macAddress: dto.macAddress }),
-          ...(dto.rtspEndpoint && { rtspEndpoint: dto.rtspEndpoint }),
-          ...(mediamtxValue !== undefined && {
-            mediamtxEndpoint: mediamtxValue,
-          }),
-          ...(latValue !== undefined && { latitude: latValue }),
-          ...(longValue !== undefined && { longitude: longValue }),
-        },
-      });
+      if (dto.name !== undefined) device.name = dto.name;
+      if (dto.macAddress !== undefined) device.macAddress = dto.macAddress;
+      if (dto.rtspEndpoint !== undefined) device.rtspEndpoint = dto.rtspEndpoint;
+      if (mediamtxValue !== undefined) device.mediamtxEndpoint = mediamtxValue;
+      if (latValue !== undefined) device.latitude = latValue;
+      if (longValue !== undefined) device.longitude = longValue;
+
+      const updated = await this.deviceRepository.save(device);
 
       // Broadcast MQTT update to worker
-      await this.mqttService.publishUpsertCamera(update);
+      await this.mqttService.publishUpsertCamera(updated);
 
       return {
         message: 'Success update device',
-        data: update,
+        data: updated,
       };
     } catch (error) {
-      console.error('Error updating device:', error);
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      this.logger.error('Error updating device:', error);
       throw new InternalServerErrorException(
         'Something went wrong on our server',
       );
@@ -194,32 +242,29 @@ export class DevicesService {
   }
 
   async deleteDevice(userId: string, deviceId: string) {
-    const isValid = await this.prisma.device.findFirst({
-      where: {
-        id: deviceId,
-      },
+    const device = await this.deviceRepository.findOne({
+      where: { id: deviceId },
     });
 
-    if (!isValid) {
+    if (!device) {
       throw new NotFoundException('Device not found');
     }
 
     try {
-      await this.prisma.device.delete({
-        where: {
-          id: deviceId,
-        },
-      });
+      await this.deviceRepository.delete({ id: deviceId });
 
       // Broadcast MQTT removal to worker
       await this.mqttService.publishRemoveCamera(deviceId);
 
       return {
         message: 'Success delete device',
-        id: deviceId,
+        data: { id: deviceId },
       };
     } catch (error) {
-      console.error('Error deleting device:', error);
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      this.logger.error('Error deleting device:', error);
       throw new InternalServerErrorException(
         'Something went wrong on our server',
       );
@@ -227,7 +272,7 @@ export class DevicesService {
   }
 
   async captureDeviceSnapshot(deviceId: string): Promise<Buffer> {
-    const device = await this.prisma.device.findUnique({
+    const device = await this.deviceRepository.findOne({
       where: { id: deviceId },
     });
 
@@ -276,7 +321,7 @@ export class DevicesService {
         if (code === 0 && chunks.length > 0) {
           resolve(Buffer.concat(chunks));
         } else {
-          console.error(
+          this.logger.error(
             `FFmpeg snapshot failed with code ${code}: ${errOutput}`,
           );
           reject(
@@ -287,12 +332,12 @@ export class DevicesService {
         }
       });
 
-      ffmpeg.on('error', (err: any) => {
-        console.error('FFmpeg process error:', err);
+      ffmpeg.on('error', (err: NodeJS.ErrnoException) => {
+        this.logger.error('FFmpeg process error:', err);
         if (err?.code === 'ENOENT') {
           reject(
             new InternalServerErrorException(
-              `FFmpeg binary ('${ffmpegPath}') tidak ditemukan di server. Pastikan ffmpeg sudah terinstall (sudo apt install -y ffmpeg).`,
+              `FFmpeg binary ('${ffmpegPath}') tidak ditemukan di server. Pastikan ffmpeg sudah terinstall.`,
             ),
           );
         } else {
@@ -300,7 +345,7 @@ export class DevicesService {
         }
       });
 
-      // 6 second safety timeout
+      // 6-second timeout
       setTimeout(() => {
         try {
           ffmpeg.kill();

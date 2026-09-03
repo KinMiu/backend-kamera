@@ -1,6 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unnecessary-type-assertion */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-import { PrismaService } from '@/prisma/prisma.service';
 import {
   ForbiddenException,
   Injectable,
@@ -8,14 +5,19 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { LoginDto } from './dto/login.dto';
+import { UserEntity } from '../database/entities/user.entity';
+import { JwtPayload } from '../common/interfaces/request.interface';
 
 @Injectable()
 export class AuthService {
   constructor(
-    private prisma: PrismaService,
-    private jwtService: JwtService,
+    @InjectRepository(UserEntity)
+    private readonly userRepository: Repository<UserEntity>,
+    private readonly jwtService: JwtService,
   ) {}
 
   async generateTokens(userId: string, email: string, name: string) {
@@ -38,7 +40,7 @@ export class AuthService {
       ]);
 
       return { accessToken, refreshToken };
-    } catch (error) {
+    } catch {
       throw new InternalServerErrorException(
         'Something went wrong on our server',
       );
@@ -48,23 +50,13 @@ export class AuthService {
   async updateRefreshTokenHash(userId: string, refreshToken: string | null) {
     try {
       if (!refreshToken) {
-        await this.prisma.user.update({
-          where: { id: userId },
-          data: {
-            refreshToken: null,
-          },
-        });
+        await this.userRepository.update({ id: userId }, { refreshToken: null });
         return;
       }
 
       const hash = await bcrypt.hash(refreshToken, 10);
-      await this.prisma.user.update({
-        where: { id: userId },
-        data: {
-          refreshToken: hash,
-        },
-      });
-    } catch (error) {
+      await this.userRepository.update({ id: userId }, { refreshToken: hash });
+    } catch {
       throw new InternalServerErrorException(
         'Something went wrong on our server',
       );
@@ -72,7 +64,7 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
-    const user = await this.prisma.user.findUnique({
+    const user = await this.userRepository.findOne({
       where: { email: dto.email },
     });
     if (!user) {
@@ -99,7 +91,7 @@ export class AuthService {
           email: user.email,
         },
       };
-    } catch (error) {
+    } catch {
       throw new InternalServerErrorException(
         'Something went wrong on our server',
       );
@@ -108,28 +100,27 @@ export class AuthService {
 
   async refreshTokens(refreshToken: string) {
     if (!refreshToken) {
-      throw new ForbiddenException('Access denied, missing tokens or payload');
+      throw new UnauthorizedException('Refresh token is required');
     }
 
     let userId: string;
-
     try {
-      const decoded = this.jwtService.decode(refreshToken) as any;
-      userId = decoded?.id;
-    } catch (error) {
-      throw new ForbiddenException('Invalid token format');
+      const decoded = this.jwtService.decode(refreshToken) as JwtPayload | null;
+      userId = decoded?.id ?? '';
+    } catch {
+      throw new UnauthorizedException('Invalid token format');
     }
 
     if (!userId) {
-      throw new ForbiddenException('Access denied, invalid payload');
+      throw new UnauthorizedException('Invalid token payload');
     }
 
-    const user = await this.prisma.user.findUnique({
+    const user = await this.userRepository.findOne({
       where: { id: userId },
     });
 
     if (!user || !user.refreshToken) {
-      throw new ForbiddenException('Access denied');
+      throw new ForbiddenException('Access denied, refresh token has been revoked');
     }
 
     const isRefreshTokenValid = await bcrypt.compare(
@@ -138,19 +129,18 @@ export class AuthService {
     );
 
     if (!isRefreshTokenValid) {
-      throw new ForbiddenException('Access denied, Token not valid !');
+      throw new ForbiddenException('Access denied, invalid refresh token');
     }
 
     try {
       const tokens = await this.generateTokens(user.id, user.email, user.name);
       await this.updateRefreshTokenHash(user.id, tokens.refreshToken);
-      // console.log(tokens);
 
       return {
         access_token: tokens.accessToken,
         refresh_token: tokens.refreshToken,
       };
-    } catch (error) {
+    } catch {
       throw new InternalServerErrorException(
         'Something went wrong on our server during token generation',
       );
@@ -163,7 +153,7 @@ export class AuthService {
       return {
         message: 'Success logout!',
       };
-    } catch (error) {
+    } catch {
       throw new InternalServerErrorException(
         'Something went wrong on our server',
       );

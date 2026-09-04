@@ -19,9 +19,16 @@ export class DeviceEntity {
   id: string;
 
   @BeforeInsert()
-  generateId(): void {
+  generateDefaults(): void {
     if (!this.id) {
       this.id = randomUUID();
+    }
+    const now = new Date();
+    if (!this.createdAt) {
+      this.createdAt = now;
+    }
+    if (!this.updatedAt) {
+      this.updatedAt = now;
     }
   }
 
@@ -46,10 +53,16 @@ export class DeviceEntity {
   @Column({ type: 'uuid' })
   userId: string;
 
-  @CreateDateColumn({ type: 'timestamp with time zone' })
+  @CreateDateColumn({
+    type: 'timestamp with time zone',
+    default: () => 'CURRENT_TIMESTAMP',
+  })
   createdAt: Date;
 
-  @UpdateDateColumn({ type: 'timestamp with time zone' })
+  @UpdateDateColumn({
+    type: 'timestamp with time zone',
+    default: () => 'CURRENT_TIMESTAMP',
+  })
   updatedAt: Date;
 
   @ManyToOne(() => UserEntity, (user) => user.devices, { onDelete: 'CASCADE' })

@@ -16,9 +16,16 @@ export class UserEntity {
   id: string;
 
   @BeforeInsert()
-  generateId(): void {
+  generateDefaults(): void {
     if (!this.id) {
       this.id = randomUUID();
+    }
+    const now = new Date();
+    if (!this.createdAt) {
+      this.createdAt = now;
+    }
+    if (!this.updatedAt) {
+      this.updatedAt = now;
     }
   }
 
@@ -34,10 +41,16 @@ export class UserEntity {
   @Column({ type: 'varchar', nullable: true })
   refreshToken: string | null;
 
-  @CreateDateColumn({ type: 'timestamp with time zone' })
+  @CreateDateColumn({
+    type: 'timestamp with time zone',
+    default: () => 'CURRENT_TIMESTAMP',
+  })
   createdAt: Date;
 
-  @UpdateDateColumn({ type: 'timestamp with time zone' })
+  @UpdateDateColumn({
+    type: 'timestamp with time zone',
+    default: () => 'CURRENT_TIMESTAMP',
+  })
   updatedAt: Date;
 
   @OneToMany(() => DeviceEntity, (device) => device.user)

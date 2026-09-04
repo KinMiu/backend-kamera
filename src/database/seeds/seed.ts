@@ -24,10 +24,18 @@ async function seed() {
   try {
     await dataSource.query(`CREATE EXTENSION IF NOT EXISTS "pgcrypto";`);
     await dataSource.query(`ALTER TABLE IF EXISTS "users" ALTER COLUMN "id" SET DEFAULT gen_random_uuid();`);
+    await dataSource.query(`ALTER TABLE IF EXISTS "users" ALTER COLUMN "createdAt" SET DEFAULT CURRENT_TIMESTAMP;`);
+    await dataSource.query(`ALTER TABLE IF EXISTS "users" ALTER COLUMN "updatedAt" SET DEFAULT CURRENT_TIMESTAMP;`);
+
     await dataSource.query(`ALTER TABLE IF EXISTS "devices" ALTER COLUMN "id" SET DEFAULT gen_random_uuid();`);
+    await dataSource.query(`ALTER TABLE IF EXISTS "devices" ALTER COLUMN "createdAt" SET DEFAULT CURRENT_TIMESTAMP;`);
+    await dataSource.query(`ALTER TABLE IF EXISTS "devices" ALTER COLUMN "updatedAt" SET DEFAULT CURRENT_TIMESTAMP;`);
+
     await dataSource.query(`ALTER TABLE IF EXISTS "recordings" ALTER COLUMN "id" SET DEFAULT gen_random_uuid();`);
+    await dataSource.query(`ALTER TABLE IF EXISTS "recordings" ALTER COLUMN "createdAt" SET DEFAULT CURRENT_TIMESTAMP;`);
+    await dataSource.query(`ALTER TABLE IF EXISTS "recordings" ALTER COLUMN "updatedAt" SET DEFAULT CURRENT_TIMESTAMP;`);
   } catch (err) {
-    console.warn('Notice: Could not alter column default for UUID (ignored):', err);
+    console.warn('Notice: Could not alter column default for UUID / timestamps (ignored):', err);
   }
 
   const userRepository = dataSource.getRepository(UserEntity);
@@ -38,10 +46,13 @@ async function seed() {
 
   let admin = await userRepository.findOne({ where: { email: adminEmail } });
   if (!admin) {
+    const now = new Date();
     admin = userRepository.create({
       email: adminEmail,
       password: hashedPassword,
       name: 'Super Admin',
+      createdAt: now,
+      updatedAt: now,
     });
     await userRepository.save(admin);
     console.log('Seeding sukses: Akun Super Admin berhasil dibuat!');

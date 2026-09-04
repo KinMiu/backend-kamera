@@ -21,6 +21,15 @@ async function seed() {
   await dataSource.initialize();
   console.log('Database connected for seeding...');
 
+  try {
+    await dataSource.query(`CREATE EXTENSION IF NOT EXISTS "pgcrypto";`);
+    await dataSource.query(`ALTER TABLE IF EXISTS "users" ALTER COLUMN "id" SET DEFAULT gen_random_uuid();`);
+    await dataSource.query(`ALTER TABLE IF EXISTS "devices" ALTER COLUMN "id" SET DEFAULT gen_random_uuid();`);
+    await dataSource.query(`ALTER TABLE IF EXISTS "recordings" ALTER COLUMN "id" SET DEFAULT gen_random_uuid();`);
+  } catch (err) {
+    console.warn('Notice: Could not alter column default for UUID (ignored):', err);
+  }
+
   const userRepository = dataSource.getRepository(UserEntity);
 
   const adminEmail = process.env.SEED_ADMIN_EMAIL || 'admin@example.com';

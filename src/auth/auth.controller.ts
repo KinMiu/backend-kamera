@@ -25,11 +25,25 @@ export class AuthController {
 
   @HttpCode(HttpStatus.OK)
   @Post('refresh')
-  async refresh(@Body('refreshToken') refreshToken: string) {
-    if (!refreshToken) {
+  async refresh(
+    @Body() body: Record<string, any>,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    const authHeader = req.headers?.authorization;
+    const bearerToken =
+      typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
+        ? authHeader.slice(7)
+        : authHeader;
+
+    const token =
+      body?.refreshToken ||
+      body?.refresh_token ||
+      bearerToken;
+
+    if (!token) {
       throw new UnauthorizedException('Refresh token is required');
     }
-    return this.authService.refreshTokens(refreshToken);
+    return this.authService.refreshTokens(token);
   }
 
   @UseGuards(JwtAuthGuard)

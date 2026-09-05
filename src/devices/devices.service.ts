@@ -26,14 +26,27 @@ export class DevicesService {
 
   async createDevice(dto: CreateDeviceDto, userId: string) {
     try {
-      // 409 Conflict check for unique MAC address
-      const existing = await this.deviceRepository.findOne({
-        where: { macAddress: dto.macAddress },
-      });
-      if (existing) {
-        throw new ConflictException(
-          `Device with MAC address '${dto.macAddress}' already exists`,
-        );
+      let macAddress = dto.macAddress?.trim();
+
+      if (macAddress) {
+        // 409 Conflict check for unique MAC address if provided
+        const existing = await this.deviceRepository.findOne({
+          where: { macAddress },
+        });
+        if (existing) {
+          throw new ConflictException(
+            `Device with MAC address '${macAddress}' already exists`,
+          );
+        }
+      } else {
+        // Auto-generate virtual MAC (02:1A:XX:XX:XX:XX) if omitted
+        const randHex = Array.from({ length: 4 }, () =>
+          Math.floor(Math.random() * 256)
+            .toString(16)
+            .padStart(2, '0')
+            .toUpperCase(),
+        ).join(':');
+        macAddress = `02:1A:${randHex}`;
       }
 
       const latitude = dto.latitude ?? dto.lat ?? null;
@@ -48,7 +61,7 @@ export class DevicesService {
       const device = this.deviceRepository.create({
         userId: userId,
         name: dto.name,
-        macAddress: dto.macAddress,
+        macAddress: macAddress,
         rtspEndpoint: dto.rtspEndpoint,
         mediamtxEndpoint: mediamtxEndpoint,
         latitude: latitude,

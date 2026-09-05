@@ -7,9 +7,9 @@ export class CreateDeviceDto {
   @IsString({ message: 'Name must be a string!' })
   name!: string;
 
-  @IsNotEmpty({ message: 'MAC Address cannot be empty!' })
+  @IsOptional()
   @IsString({ message: 'MAC Address must be a string!' })
-  macAddress!: string;
+  macAddress?: string;
 
   @IsNotEmpty({ message: 'RTSP Endpoint cannot be empty!' })
   @IsString({ message: 'RTSP Endpoint must be a string!' })
